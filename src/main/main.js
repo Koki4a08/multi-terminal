@@ -16,9 +16,9 @@ function isAdmin() {
     }
 }
 
-if (process.platform === 'win32' && !isAdmin()) {
-    // Relaunch with admin privileges
-    const { shell } = require('electron');
+// Packaged Windows builds use the EXE manifest to request elevation on launch.
+// Keep the manual relaunch only as a fallback for development/unpackaged runs.
+if (process.platform === 'win32' && !app.isPackaged && !isAdmin()) {
     const exePath = process.argv[0];
     const args = process.argv.slice(1).join('" "');
 
