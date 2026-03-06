@@ -116,6 +116,17 @@ function clearTerminalLoader(info) {
     }
 }
 
+async function copyTextToClipboard(text) {
+    if (!text) return false;
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (error) {
+        console.error('Failed to copy text:', error);
+        return false;
+    }
+}
+
 function getWorkspace(id = state.activeWorkspaceId) {
     return id == null ? null : state.workspaces.get(id) || null;
 }
@@ -603,6 +614,11 @@ function renderTerminalTabs() {
 
         container.appendChild(tab);
     });
+
+    container.querySelector('.terminal-tab.active')?.scrollIntoView({
+        block: 'nearest',
+        inline: 'nearest',
+    });
 }
 
 function createWorkspace(name, requestedId, layout = DEFAULT_LAYOUT, options = {}) {
@@ -756,6 +772,23 @@ function createTerminal(shell, requestedId, restoredContent, workspaceId = state
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
     term.open(wrapper);
+    term.attachCustomKeyEventHandler((event) => {
+        if (event.type !== 'keydown') return true;
+
+        const isCopyShortcut =
+            event.ctrlKey &&
+            !event.altKey &&
+            !event.metaKey &&
+            event.key.toLowerCase() === 'c';
+
+        if (!isCopyShortcut || !term.hasSelection()) {
+            return true;
+        }
+
+        event.preventDefault();
+        copyTextToClipboard(term.getSelection());
+        return false;
+    });
 
     // Store terminal info
     state.terminals.set(id, {
@@ -1052,7 +1085,7 @@ function updateLayoutVisibility() {
     let visibleCount = 0;
     const orderedIds = !workspace
         ? []
-        : layout === 'single' && workspace.activeTerminalId
+        : workspace.activeTerminalId
             ? [workspace.activeTerminalId, ...workspace.terminalIds.filter(id => id !== workspace.activeTerminalId)]
             : [...workspace.terminalIds];
 
