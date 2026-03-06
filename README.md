@@ -38,6 +38,12 @@ npm run dist
 
 The packaged output is created in `dist/`.
 
+### Option 3: Publish installer through GitHub Releases
+
+This repository includes a GitHub Actions workflow at `.github/workflows/release.yml`.
+
+Push a version tag such as `v1.0.1` to trigger a Windows build and upload the generated installer to the matching GitHub Release.
+
 ## How To Use
 
 When the app opens, create a workspace or launch a quick terminal from the welcome screen.
