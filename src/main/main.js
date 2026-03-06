@@ -35,6 +35,7 @@ if (process.platform === 'win32' && !isAdmin()) {
 // Store all terminal processes
 const terminals = new Map();
 let mainWindow;
+const projectRoot = path.resolve(__dirname, '..', '..');
 
 // History file path
 const HISTORY_FILE = path.join(app.getPath('userData'), 'command-history.json');
@@ -58,7 +59,7 @@ function createWindow() {
         backgroundColor: '#0a0a0f',
         titleBarStyle: 'hidden',
         titleBarOverlay: false,
-        icon: path.join(__dirname, 'icon.png'),
+        icon: path.join(projectRoot, 'assets', 'icon.png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -66,7 +67,7 @@ function createWindow() {
         },
     });
 
-    mainWindow.loadFile('index.html');
+    mainWindow.loadFile(path.join(projectRoot, 'src', 'renderer', 'index.html'));
 
     // Remove default menu
     Menu.setApplicationMenu(null);

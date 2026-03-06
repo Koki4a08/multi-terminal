@@ -1,3 +1,3 @@
 Set WshShell = CreateObject("WScript.Shell")
 WshShell.CurrentDirectory = "c:\Users\KokoG\Documents\multi-terminal"
-WshShell.Run """scripts\start-hidden.vbs""", 0, False
+WshShell.Run "node_modules\.bin\electron.cmd .", 0, False

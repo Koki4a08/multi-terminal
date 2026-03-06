@@ -2,7 +2,7 @@
     "name": "multi-terminal",
     "version": "1.0.0",
     "description": "A premium multi-terminal Windows application for vibe coding",
-    "main": "main.js",
+    "main": "src/main/main.js",
     "scripts": {
         "start": "electron .",
         "dev": "electron . --dev",
@@ -42,7 +42,7 @@
                     ]
                 }
             ],
-            "icon": "icon.png"
+            "icon": "assets/icon.png"
         },
         "nsis": {
             "oneClick": true,
@@ -52,11 +52,10 @@
             "shortcutName": "Multi Terminal"
         },
         "files": [
-            "main.js",
-            "preload.js",
-            "renderer.js",
-            "index.html",
-            "styles.css",
+            "src/main/**/*",
+            "src/renderer/**/*",
+            "assets/**/*",
+            "scripts/**/*",
             "node_modules/@xterm/**/*",
             "node_modules/node-pty/**/*"
         ],

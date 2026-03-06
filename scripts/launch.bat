@@ -1,3 +1,3 @@
 @echo off
 cd /d "c:\Users\KokoG\Documents\multi-terminal"
-call "scripts\launch.bat"
+start "" "node_modules\.bin\electron.cmd" .
