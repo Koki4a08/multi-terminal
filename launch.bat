@@ -1,3 +1,3 @@
 @echo off
-cd /d "c:\Users\KokoG\Documents\multi-terminal"
+cd /d "c:\Users\<youruser>\Documents\multi-terminal"
 call "scripts\launch.bat"
