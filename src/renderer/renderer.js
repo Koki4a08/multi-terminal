@@ -26,8 +26,7 @@ const MAX_SAVED_BUFFER_LINES = 2000;
 const MAX_SAVED_BUFFER_CHARS = 200000;
 const SESSION_SAVE_DEBOUNCE_MS = 400;
 const TERMINAL_LOADING_FALLBACK_MS = 1200;
-const DEFAULT_LAYOUT = 'single';
-const LAYOUT_TERMINAL_COUNT = { single: 1, hsplit: 2, vsplit: 2, grid: 4 };
+const DEFAULT_LAYOUT = 'auto';
 const TERM_OPTIONS = {
     fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace",
     fontSize: 13,
@@ -139,11 +138,24 @@ function getActiveTerminalId() {
     return getActiveWorkspace()?.activeTerminalId ?? null;
 }
 
-function syncLayoutButtons() {
-    const activeLayout = getActiveWorkspace()?.layout || DEFAULT_LAYOUT;
-    document.querySelectorAll('.layout-btn[data-layout]').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.layout === activeLayout);
-    });
+function getAutoGridDimensions(count) {
+    if (count <= 1) {
+        return { columns: 1, rows: 1 };
+    }
+
+    const columns = 2 ** Math.ceil(Math.log2(Math.sqrt(count)));
+    return {
+        columns,
+        rows: Math.max(1, Math.ceil(count / columns)),
+    };
+}
+
+function applyAutoGridLayout(workspace = getActiveWorkspace()) {
+    const container = document.getElementById('panes-container');
+    const visibleCount = workspace?.terminalIds.length || 1;
+    const { columns, rows } = getAutoGridDimensions(visibleCount);
+    container.style.setProperty('--grid-columns', String(columns));
+    container.style.setProperty('--grid-rows', String(rows));
 }
 
 function getSessionState() {
@@ -225,7 +237,7 @@ async function startTerminalProcess(id) {
     if (info.backendReady) return true;
     if (info.backendStartPromise) return info.backendStartPromise;
 
-    const shellToUse = info.shell || document.getElementById('shell-select').value || undefined;
+    const shellToUse = info.shell || undefined;
     info.backendStartPromise = window.terminal.create({ id, shell: shellToUse })
         .then((result) => {
             if (!result || result.success === false) {
@@ -287,7 +299,10 @@ function normalizeSession(session) {
                 ? session.workspaceCounter
                 : session.workspaces.reduce((max, workspace) => Math.max(max, workspace?.id || 0), 0),
             activeWorkspaceId: Number.isInteger(session.activeWorkspaceId) ? session.activeWorkspaceId : null,
-            workspaces: session.workspaces,
+            workspaces: session.workspaces.map(workspace => ({
+                ...workspace,
+                layout: DEFAULT_LAYOUT,
+            })),
         };
     }
 
@@ -299,7 +314,7 @@ function normalizeSession(session) {
             workspaces: [{
                 id: 1,
                 name: 'Workspace 1',
-                layout: typeof session.layout === 'string' ? session.layout : DEFAULT_LAYOUT,
+                layout: DEFAULT_LAYOUT,
                 activeTerminalId: Number.isInteger(session.activeId) ? session.activeId : null,
                 terminals: session.terminals,
             }],
@@ -322,7 +337,7 @@ async function restoreSession() {
 
         for (const workspaceConfig of session.workspaces) {
             if (!workspaceConfig || !Number.isInteger(workspaceConfig.id)) continue;
-            createWorkspace(workspaceConfig.name, workspaceConfig.id, workspaceConfig.layout, { activate: false, skipSave: true });
+            createWorkspace(workspaceConfig.name, workspaceConfig.id, DEFAULT_LAYOUT, { activate: false, skipSave: true });
 
             for (const terminalConfig of workspaceConfig.terminals || []) {
                 if (!terminalConfig || !Number.isInteger(terminalConfig.id)) continue;
@@ -641,8 +656,8 @@ function createWorkspace(name, requestedId, layout = DEFAULT_LAYOUT, options = {
 
     renderWorkspaceTabs();
     renderTerminalTabs();
-    syncLayoutButtons();
     updateWelcome();
+    applyAutoGridLayout(getWorkspace(id));
 
     if (!options.skipSave) {
         scheduleSessionSave();
@@ -670,7 +685,6 @@ function setActiveWorkspace(id, options = {}) {
     hideSuggestion();
     renderWorkspaceTabs();
     renderTerminalTabs();
-    syncLayoutButtons();
     updateLayoutVisibility();
     updateWelcome();
     fitAllTerminals();
@@ -704,7 +718,6 @@ function closeWorkspace(id) {
     state.activeWorkspaceId = null;
     renderWorkspaceTabs();
     renderTerminalTabs();
-    syncLayoutButtons();
     updateLayoutVisibility();
     updateWelcome();
     fitAllTerminals();
@@ -816,7 +829,7 @@ function createTerminal(shell, requestedId, restoredContent, workspaceId = state
     if (!workspace.activeTerminalId) {
         workspace.activeTerminalId = id;
     }
-    const shellToUse = shell || document.getElementById('shell-select').value || undefined;
+    const shellToUse = shell || undefined;
     state.terminals.get(id).shell = shellToUse || null;
 
     // Handle data from pty
@@ -1040,75 +1053,15 @@ function setActiveTerminal(id, options = {}) {
     }
 }
 
-// ─── Layout Management ─────────────────────────────────────────────────
-function setLayout(layout) {
-    let workspace = getActiveWorkspace();
-    if (!workspace) {
-        createWorkspaceWithTerminal();
-        workspace = getActiveWorkspace();
-    }
-    if (!workspace) return;
-
-    workspace.layout = layout;
-    const container = document.getElementById('panes-container');
-    container.className = `layout-${layout}`;
-    syncLayoutButtons();
-
-    // Auto-create terminals to fill the layout
-    const count = LAYOUT_TERMINAL_COUNT[layout] || 1;
-    while (workspace.terminalIds.length < count) {
-        createTerminal(undefined, null, '', workspace.id, {
-            activate: !workspace.activeTerminalId,
-            skipSave: true,
-        });
-    }
-
-    updateLayoutVisibility();
-    fitAllTerminals();
-    scheduleSessionSave();
-}
-
 function updateLayoutVisibility() {
     const panes = Array.from(document.querySelectorAll('.terminal-pane'));
     const workspace = getActiveWorkspace();
-    const layout = workspace?.layout || DEFAULT_LAYOUT;
-    const max = LAYOUT_TERMINAL_COUNT[layout] || 1;
+    applyAutoGridLayout(workspace);
 
-    document.getElementById('panes-container').className = `layout-${layout}`;
-
-    // First hide everything
     panes.forEach(pane => {
-        pane.style.display = 'none';
-        pane.style.order = '0';
+        const isVisible = workspace && pane.dataset.workspaceId === String(workspace.id);
+        pane.style.display = isVisible ? '' : 'none';
     });
-
-    let visibleCount = 0;
-    const orderedIds = !workspace
-        ? []
-        : workspace.activeTerminalId
-            ? [workspace.activeTerminalId, ...workspace.terminalIds.filter(id => id !== workspace.activeTerminalId)]
-            : [...workspace.terminalIds];
-
-    // 1. Show the active terminal first
-    if (orderedIds.length > 0) {
-        const activePane = document.querySelector(`.terminal-pane[data-term-id="${orderedIds[0]}"]`);
-        if (activePane) {
-            activePane.style.display = '';
-            activePane.style.order = '0';
-            visibleCount++;
-        }
-    }
-
-    // 2. Fill remaining slots with other terminals
-    for (const id of orderedIds.slice(1)) {
-        if (visibleCount >= max) break;
-        const pane = document.querySelector(`.terminal-pane[data-term-id="${id}"]`);
-        if (pane && pane.style.display === 'none') {
-            pane.style.display = '';
-            pane.style.order = String(visibleCount);
-            visibleCount++;
-        }
-    }
 }
 
 function fitAllTerminals() {
@@ -1149,22 +1102,6 @@ function updateWelcome() {
     welcome.classList.add('hidden');
 }
 
-// ─── Shell Population ──────────────────────────────────────────────────
-async function populateShells() {
-    try {
-        const shells = await window.terminal.getShells();
-        const select = document.getElementById('shell-select');
-        shells.forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s.path;
-            opt.textContent = s.name;
-            select.appendChild(opt);
-        });
-    } catch (e) {
-        console.error('Failed to get shells:', e);
-    }
-}
-
 // ─── Event Bindings ────────────────────────────────────────────────────
 function initEvents() {
     // New terminal buttons
@@ -1174,12 +1111,6 @@ function initEvents() {
     document.getElementById('btn-add-terminal-tab').addEventListener('click', () => createTerminal());
     document.getElementById('btn-welcome-workspace').addEventListener('click', () => createWorkspaceWithTerminal());
     document.getElementById('btn-welcome-terminal').addEventListener('click', () => createTerminal());
-
-    // Layout buttons
-    document.getElementById('btn-layout-single').addEventListener('click', () => setLayout('single'));
-    document.getElementById('btn-layout-hsplit').addEventListener('click', () => setLayout('hsplit'));
-    document.getElementById('btn-layout-vsplit').addEventListener('click', () => setLayout('vsplit'));
-    document.getElementById('btn-layout-grid').addEventListener('click', () => setLayout('grid'));
 
     // Window controls
     document.getElementById('btn-minimize').addEventListener('click', () => window.windowControls.minimize());
@@ -1245,20 +1176,6 @@ function initEvents() {
             }
             return;
         }
-        // Ctrl+\ — toggle split
-        if (e.ctrlKey && e.key === '\\') {
-            e.preventDefault();
-            const layouts = ['single', 'hsplit', 'vsplit', 'grid'];
-            const current = layouts.indexOf(getActiveWorkspace()?.layout || DEFAULT_LAYOUT);
-            setLayout(layouts[(current + 1) % layouts.length]);
-            return;
-        }
-        // Ctrl+G — grid
-        if (e.ctrlKey && e.key === 'g') {
-            e.preventDefault();
-            setLayout('grid');
-            return;
-        }
         // Ctrl+Tab — next terminal
         if (e.ctrlKey && e.key === 'Tab') {
             e.preventDefault();
@@ -1288,13 +1205,9 @@ async function init() {
     setAppLoading(true);
     try {
         await loadHistory();
-        await populateShells();
         initEvents();
         updateWelcome();
-        syncLayoutButtons();
-
-        // Set initial layout
-        document.getElementById('panes-container').className = `layout-${DEFAULT_LAYOUT}`;
+        applyAutoGridLayout();
 
         const restored = await restoreSession();
         if (!restored) {
