@@ -34,7 +34,7 @@
         "appId": "com.multiterminal.app",
         "productName": "Multi Terminal",
         "win": {
-            "requestedExecutionLevel": "requireAdministrator",
+            "requestedExecutionLevel": "asInvoker",
             "target": [
                 {
                     "target": "nsis",

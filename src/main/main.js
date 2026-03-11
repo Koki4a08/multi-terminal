@@ -3,34 +3,6 @@ const path = require('node:path');
 const os = require('node:os');
 const fs = require('node:fs');
 const pty = require('node-pty');
-const { execSync } = require('node:child_process');
-
-// ─── Admin Elevation Check ──────────────────────────────────
-function isAdmin() {
-    if (process.platform !== 'win32') return true;
-    try {
-        execSync('net session', { stdio: 'ignore' });
-        return true;
-    } catch (e) {
-        return false;
-    }
-}
-
-// Packaged Windows builds use the EXE manifest to request elevation on launch.
-// Keep the manual relaunch only as a fallback for development/unpackaged runs.
-if (process.platform === 'win32' && !app.isPackaged && !isAdmin()) {
-    const exePath = process.argv[0];
-    const args = process.argv.slice(1).join('" "');
-
-    const cp = require('node:child_process');
-    cp.exec(
-        `powershell -Command "Start-Process '${exePath}' -ArgumentList '${args}' -Verb RunAs"`,
-        (err) => { app.quit(); }
-    );
-    // Prevent the non-elevated instance from continuing
-    app.quit();
-    return;
-}
 
 // Store all terminal processes
 const terminals = new Map();
